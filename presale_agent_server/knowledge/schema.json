@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "description": "售前Agent知识库 - 目录索引",
+  "last_updated": "2026-05-15",
+  "structure": {
+    "industries": {
+      "description": "行业通用知识（痛点、方案套路、AI服务提示）",
+      "files": [
+        {"file": "industrial_manufacturing.json", "industry": "工业品生产销售"},
+        {"file": "financial_services.json", "industry": "金融服务（汽车贷款担保/助贷）"},
+        {"file": "enterprise_admin.json", "industry": "企业行政管理（固定资产盘点与折旧）"},
+        {"file": "home_decoration.json", "industry": "家居定制装修（订单交付与售后管理）"},
+        {"file": "hr_services.json", "industry": "人力资源服务（劳务派遣/招聘外协）"},
+        {"file": "performance_management.json", "industry": "企业绩效考核管理/会签"},
+        {"file": "b2b_sales_crm.json", "industry": "B2B工业品销售CRM管理"},
+        {"file": "manufacturing_kaizen.json", "industry": "制造业（员工改善提报与积分激励）"}
+      ]
+    },
+    "cases": {
+      "description": "完整交付案例（含需求沟通、方案设计、字段定义）",
+      "files": [
+        {"file": "manufacturing_fuhong_kaizen.json", "customer": "福鸿", "scene": "改善建议提报+积分奖励"},
+        {"file": "b2b_changyi_sales_crm.json", "customer": "长谊新材料", "scene": "销售线索CRM+ERP对接"}
+      ]
+    },
+    "demand_pool": {
+      "description": "需求池原始数据（客户进线记录、已成交案例摘要）",
+      "files": [
+        {"file": "completed_deals.json", "description": "已成交案例（41条）", "count": 41},
+        {"file": "incoming_demands.json", "description": "进线需求单（158条）", "count": 158},
+        {"file": "demand_pool.json", "description": "完整需求池（473条）", "count": 473}
+      ]
+    }
+  },
+  "how_to_add_cases": {
+    "step1": "将新案例的沟通记录、方案、交付物整理为 JSON",
+    "step2": "放入 cases/ 目录，按 '{industry}_{customer}_{scene}.json' 命名",
+    "step3": "在 cases/library.py 的 CASE_LIBRARY 中追加精炼卡片",
+    "step4": "更新本文件的 cases.files 列表"
+  }
+}

@@ -429,23 +429,59 @@ CASE_LIBRARY = [
         "price_range": "需评估",
         "tags": ["餐饮", "订货", "经销商", "支付", "金蝶"],
     },
+    # ========== 新增案例：制造业-改善提报 ==========
+    {
+        "customer": "福鸿",
+        "industry": "制造业",
+        "scale": "中等",
+        "project_type": "员工改善提报+积分奖励系统",
+        "pain_points": "改善建议提报流程不规范，积分计算靠人工，奖品库存管理混乱",
+        "modules": ["改善提报", "积分自动计算", "奖品库存管理", "采购入库", "奖品兑换"],
+        "highlight": "6表联动，提报→积分→兑换全流程自动化，积分实时计算",
+        "effect": "提报流程规范化，积分零人工干预，奖品库存实时可见",
+        "delivery": "纯智能表格搭建（6个子表联动）",
+        "price_range": "需评估",
+        "tags": ["制造业", "改善提报", "积分管理", "奖品兑换", "自动化", "6表联动"],
+    },
+    # ========== 新增案例：B2B工业品-销售CRM ==========
+    {
+        "customer": "长谊新材料",
+        "industry": "B2B工业品/造纸",
+        "scale": "1-100人",
+        "project_type": "销售线索CRM+ERP对接",
+        "pain_points": "线索收集靠Excel、分配靠微信群、老板看不到转化率、业务员日报重复填写",
+        "modules": ["线索收集", "线索分配", "跟进管理", "项目立项", "销售日报", "ERP数据同步", "仪表盘"],
+        "highlight": "24表4模块，线索→跟进→成交全链路可视化，自动生成日报",
+        "effect": "线索转化率可视化，业务员减少50%日报工作量",
+        "delivery": "企微智能表格（24张子表）+ ERP数据同步",
+        "price_range": "需评估",
+        "tags": ["B2B", "CRM", "销售管理", "线索跟进", "转化率", "ERP对接", "造纸", "工业品"],
+    },
 ]
 
 
 class CaseLibrary:
     """
     案例知识库
-    支持：关键词匹配检索
+    支持：关键词匹配检索 + 行业知识库 + 需求池
     后续可升级：向量嵌入 + 余弦相似度检索
     """
 
     def __init__(self, cases_dir: Optional[str] = None):
         self.cases = list(CASE_LIBRARY)
+        self.industry_knowledge = {}  # 行业通用知识
+        self.detailed_cases = []  # 完整交付案例
+        self.demand_pool = []  # 需求池数据
 
         # 如果有额外案例文件，加载进来
         if cases_dir:
             extra_cases = self._load_from_dir(cases_dir)
             self.cases.extend(extra_cases)
+
+        # 加载知识库目录
+        knowledge_dir = Path(__file__).parent.parent / "knowledge"
+        if knowledge_dir.exists():
+            self._load_knowledge(knowledge_dir)
 
     def count(self) -> int:
         return len(self.cases)
@@ -453,7 +489,7 @@ class CaseLibrary:
     def match(self, query: str, top_k: int = 3) -> list[dict]:
         """
         根据查询文本匹配最相关的案例
-        简单关键词匹配，后续可升级为向量检索
+        多维度加权匹配：标签、行业、项目类型、痛点关键词
         """
         if not query:
             return self.cases[:top_k]
@@ -462,12 +498,6 @@ class CaseLibrary:
         scored = []
         for case in self.cases:
             score = 0
-            searchable = " ".join([
-                case.get("customer", ""),
-                case.get("industry", ""),
-                case.get("project_type", ""),
-                case.get("tags", []),
-            ]).lower()
 
             # 精确词匹配计分
             for tag in case.get("tags", []):
@@ -478,6 +508,17 @@ class CaseLibrary:
             if case.get("project_type", "").lower() in query_lower:
                 score += 2
 
+            # 痛点关键词匹配
+            pain = case.get("pain_points", "").lower()
+            query_words = [w for w in re.split(r'[，,、。\s]+', query_lower) if len(w) >= 2]
+            for word in query_words:
+                if word in pain:
+                    score += 3
+                # 模块名匹配
+                for mod in case.get("modules", []):
+                    if isinstance(mod, str) and word in mod.lower():
+                        score += 2
+
             if score > 0:
                 scored.append((score, case))
 
@@ -485,8 +526,79 @@ class CaseLibrary:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [c for _, c in scored[:top_k]]
 
+    def match_industry(self, industry: str) -> Optional[dict]:
+        """匹配行业通用知识"""
+        if not industry:
+            return None
+        industry_lower = industry.lower()
+        for key, data in self.industry_knowledge.items():
+            tags = [t.lower() for t in data.get("tags", [])]
+            name = data.get("industry_name", "").lower()
+            if industry_lower in name or any(industry_lower in t or t in industry_lower for t in tags):
+                return data
+        return None
+
+    def match_detailed_case(self, query: str, top_k: int = 2) -> list[dict]:
+        """匹配完整交付案例（含字段定义等详细信息）"""
+        if not query or not self.detailed_cases:
+            return []
+
+        query_lower = query.lower()
+        scored = []
+        for case in self.detailed_cases:
+            score = 0
+            meta = case.get("meta", {})
+            if meta.get("industry", "").lower() in query_lower:
+                score += 5
+            if meta.get("scene", "").lower() in query_lower:
+                score += 3
+            summary = case.get("demand_summary", "").lower()
+            for word in re.split(r'[，,、。\s]+', query_lower):
+                if len(word) >= 2 and word in summary:
+                    score += 2
+            if score > 0:
+                scored.append((score, case))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [c for _, c in scored[:top_k]]
+
     def get_all(self) -> list[dict]:
         return list(self.cases)
+
+    def _load_knowledge(self, knowledge_dir: Path):
+        """加载知识库目录"""
+        # 行业知识
+        industries_dir = knowledge_dir / "industries"
+        if industries_dir.exists():
+            for f in industries_dir.glob("*.json"):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    self.industry_knowledge[f.stem] = data
+                except Exception:
+                    pass
+
+        # 完整交付案例
+        cases_dir = knowledge_dir / "cases"
+        if cases_dir.exists():
+            for f in cases_dir.glob("*.json"):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    self.detailed_cases.append(data)
+                except Exception:
+                    pass
+
+        # 需求池
+        pool_dir = knowledge_dir / "demand_pool"
+        if pool_dir.exists():
+            for f in pool_dir.glob("*.json"):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    if "demands" in data:
+                        self.demand_pool.extend(data["demands"])
+                    elif "deals" in data:
+                        self.demand_pool.extend(data["deals"])
+                except Exception:
+                    pass
 
     def _load_from_dir(self, cases_dir: str) -> list[dict]:
         """从目录加载额外的案例 JSON 文件"""
@@ -497,7 +609,9 @@ class CaseLibrary:
 
         for f in dir_path.glob("*.json"):
             try:
-                extra.extend(json.loads(f.read_text(encoding="utf-8")))
+                data = json.loads(f.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    extra.extend(data)
             except Exception:
                 pass
         return extra
