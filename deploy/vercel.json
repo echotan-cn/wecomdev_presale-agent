@@ -10,6 +10,10 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/match.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "index.html",
       "use": "@vercel/static"
     }
@@ -17,6 +21,7 @@
   "routes": [
     { "src": "/api/create", "dest": "/api/create.py" },
     { "src": "/api/save", "dest": "/api/save.py" },
+    { "src": "/api/match", "dest": "/api/match.py" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

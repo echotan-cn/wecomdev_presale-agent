@@ -231,7 +231,24 @@ async function submitS0(){
   state.stage=1;updateStage();
 
   showLoading('AI 正在分析你的业务场景，生成针对性问题...');
-  const reply=await callAI('STAGE1\n客户基础信息：\n- 公司名称：'+company+'\n- 行业：'+ind+'\n- 规模：'+sz+'\n- 业务模式：'+biz+'\n- 希望解决的问题/痛点：'+dir+'\n\n请根据以上信息，生成3个针对这个客户业务场景的深挖问题。');
+
+  // 知识库匹配：先从后端获取行业知识和相似案例
+  let knowledgeContext='';
+  try{
+    const matchResp=await fetch('/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({industry:ind,direction:dir})});
+    if(matchResp.ok){
+      const matchData=await matchResp.json();
+      if(matchData.matched){
+        knowledgeContext='\n\n## 参考知识（基于行业经验，请结合这些信息生成更有针对性的问题，但不要在回复中提及具体客户名称）\n';
+        if(matchData.industry_knowledge) knowledgeContext+='### 行业通用知识\n'+matchData.industry_knowledge.substring(0,1500)+'\n';
+        if(matchData.case_hints) knowledgeContext+='### 同行业方案参考\n'+matchData.case_hints+'\n';
+      }
+    }
+  }catch(e){console.log('知识库匹配跳过（后端未启动）',e);}
+
+  state.data._knowledgeContext=knowledgeContext;
+
+  const reply=await callAI('STAGE1\n客户基础信息：\n- 公司名称：'+company+'\n- 行业：'+ind+'\n- 规模：'+sz+'\n- 业务模式：'+biz+'\n- 希望解决的问题/痛点：'+dir+knowledgeContext+'\n\n请根据以上信息，生成3个针对这个客户业务场景的深挖问题。');
   hideLoading();
   if(!reply){addMessage('网络异常，请刷新重试 😥','agent','🤖');return;}
   const qs=parseQuestions(reply);
