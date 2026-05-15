@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/create.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/save.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    { "src": "/api/create", "dest": "/api/create.py" },
+    { "src": "/api/save", "dest": "/api/save.py" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}

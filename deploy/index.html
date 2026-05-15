@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业微信定制开发需求助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB',sans-serif;background:#f5f5f5;height:100vh;display:flex;flex-direction:column}
+.header{background:#07c160;color:#fff;padding:16px 20px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.header h1{font-size:18px;font-weight:500}.header p{font-size:12px;opacity:.8;margin-top:4px}
+.stage-bar{background:#fff;padding:12px 20px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #eee;font-size:13px}
+.stage-item{padding:4px 12px;border-radius:12px;background:#f0f0f0;color:#999;transition:all .3s}
+.stage-item.active{background:#07c160;color:#fff}.stage-item.done{background:#d4edda;color:#155724}
+.chat-container{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.message{max-width:85%;padding:12px 16px;border-radius:12px;line-height:1.6;font-size:14px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.message.agent{align-self:flex-start;background:#fff;border:1px solid #e8e8e8;border-bottom-left-radius:4px}
+.message.user{align-self:flex-end;background:#07c160;color:#fff;border-bottom-right-radius:4px}
+.message.report{align-self:center;background:#fff;border:2px solid #07c160;max-width:95%;font-size:13px;white-space:pre-wrap}
+.message .label{font-size:11px;color:#999;margin-bottom:4px}.message.agent .label{color:#07c160}
+.form-card{align-self:flex-start;background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:16px 20px;max-width:90%;animation:fadeIn .3s ease;border-bottom-left-radius:4px}
+.form-card .form-title{font-size:14px;font-weight:600;color:#333;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.form-card .form-group{margin-bottom:14px}.form-card .form-group:last-of-type{margin-bottom:16px}
+.form-card .form-label{display:block;font-size:13px;color:#555;margin-bottom:6px;font-weight:500}
+.form-card .form-label .num{display:inline-block;width:20px;height:20px;background:#07c160;color:#fff;border-radius:50%;text-align:center;line-height:20px;font-size:11px;margin-right:6px}
+.form-card .form-hint{font-size:11px;color:#999;margin-top:3px}
+.form-card input[type="text"],.form-card textarea,.form-card select{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;background:#fafafa}
+.form-card input:focus,.form-card textarea:focus,.form-card select:focus{border-color:#07c160;background:#fff}
+.form-card textarea{resize:vertical;min-height:60px}
+.form-card select{appearance:none;background:#fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center}
+.form-card .form-submit{background:#07c160;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;cursor:pointer;width:100%;transition:background .2s;font-weight:500}
+.form-card .form-submit:hover{background:#06a855}.form-card .form-submit:disabled{background:#ccc;cursor:not-allowed}
+.form-card .tag-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.form-card .tag-item{padding:5px 12px;border:1px solid #ddd;border-radius:16px;font-size:12px;color:#666;cursor:pointer;transition:all .2s}
+.form-card .tag-item:hover,.form-card .tag-item.selected{border-color:#07c160;color:#07c160;background:#f0faf4}
+.typing{align-self:flex-start;padding:12px 16px;background:#fff;border:1px solid #e8e8e8;border-radius:12px;border-bottom-left-radius:4px}
+.typing span{display:inline-block;width:8px;height:8px;background:#ccc;border-radius:50%;margin:0 2px;animation:bounce 1.4s infinite}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.input-area{background:#fff;padding:10px 16px;border-top:1px solid #eee;text-align:center;font-size:12px;color:#999}
+.ai-loading{display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:13px;color:#07c160}
+.ai-loading .spinner{width:16px;height:16px;border:2px solid #e8e8e8;border-top-color:#07c160;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🤖 企业微信定制开发需求助手</h1>
+  <p>AI 驱动的智能需求洞察，为你量身定制方案</p>
+</div>
+<div class="stage-bar">
+  <span style="font-size:12px;color:#666">进度：</span>
+  <span class="stage-item active" id="stage-0">基础信息</span><span style="color:#ccc">→</span>
+  <span class="stage-item" id="stage-1">业务深挖</span><span style="color:#ccc">→</span>
+  <span class="stage-item" id="stage-2">细节确认</span><span style="color:#ccc">→</span>
+  <span class="stage-item" id="stage-3">生成报告</span><span style="color:#ccc">→</span>
+  <span class="stage-item" id="stage-4">生成Demo</span>
+</div>
+<div class="chat-container" id="chat"></div>
+<div class="input-area">AI 会根据你的回答，动态生成下一步最该问的问题</div>
+
+<script>
+const API_KEY='sk-63d4e005ecb646b08538368c5172ed82';
+const API_URL='https://api.deepseek.com/chat/completions';
+const MODEL='deepseek-chat';
+
+const state={stage:0,data:{},chatHistory:[]};
+
+const SYSTEM_PROMPT=`你是「企业微信定制开发需求助手」，专业售前需求顾问。
+通过3轮结构化提问帮客户把需求从模糊变清晰，最终输出需求洞察报告。
+
+## 产品定位（必须严格遵守）
+我们的服务是：基于「企业微信智能表格」进行定制搭建。
+- 核心交付物：企微智能表格的多子表搭建 + 自动化规则 + 多视图 + 仪表盘
+- 如果客户有外部系统数据需要打通（如ERP、金蝶、用友等），可以通过API对接实现数据同步
+- 禁止提及或推荐：自建应用、低代码平台、小程序开发、专业CRM软件（如销售易、纷享销客）、第三方SaaS产品
+- 所有方案建议都必须围绕「智能表格能实现什么」来展开
+- 如果客户需求超出智能表格能力范围，在报告中标注为"需评估是否需要API扩展开发"，而不是推荐其他产品
+
+## 背景知识
+常见场景：客户管理、项目管理、财务报销、人事考勤绩效、库存采购、订单管理、审批流程、合同管理、工单巡检、数据报表等。
+客户多为中小企业(1-500人)，行业以制造业(30%)、服务业(20%)、批发零售(15%)、建筑(10%)为主。
+智能表格核心能力：多子表关联、收集表（外部填报）、自动化流程（定时任务/条件触发）、多视图（表格/看板/日历/甘特图）、仪表盘、权限管控（行列级）、消息提醒、数据导入导出。
+如需对接外部系统：通过企微智能表格API实现数据读写同步。
+
+## 行为规则
+1. 收到「STAGE1」：根据客户基础信息，生成3个业务深挖问题。必须覆盖以下3个方面（每个方面1题）：
+   ① 痛点拆解：客户说了一个大方向的痛点，你要帮他拆开——具体有哪几个子问题？哪个最紧急（P0）？哪些可以后面再做？
+   ② 业务流转：围绕P0痛点，这块业务从头到尾是怎么流转的？经过哪些环节？每个环节的输入输出是什么？（这决定了要建几张表、表之间怎么关联）
+   ③ 涉及角色：这个业务流程涉及哪些角色？谁录入、谁审批、谁查看？不同角色需要看到什么、能改什么？（这决定了权限设计）
+2. 收到「STAGE2」：根据前面信息，生成3个细节确认问题。必须覆盖以下3个方面（每个方面1题）：
+   ① 数据情况：目前有多少核心数据（量级）？数据现在在哪里（Excel/其他系统/纸质）？数据更新频率是怎样的（实时录入/每天汇总/每周更新）？
+   ② 仪表盘需求：管理层最想在看板上看到什么指标？希望怎么展示（按时间趋势/按人排行/按状态分布）？有没有需要每天/每周自动推送的报表？
+   ③ 权限要求：不同角色分别需要看到什么、能操作什么？有没有数据需要严格隔离的（比如销售只看自己的客户、财务数据只有指定人可见）？
+   注意：预算和上线时间会作为固定选项附在表单末尾，AI生成的问题不要问预算和时间。
+3. 收到「REPORT」：生成结构化需求洞察报告
+4. 收到「DEMO_SCHEMA」：生成智能表格Demo的结构定义（JSON）
+
+STAGE1和STAGE2输出格式（严格JSON，不要markdown包裹）：
+{"questions":[{"label":"问题文字","placeholder":"输入提示举例","tags":["标签1","标签2","标签3"]}]}
+- tags给3-6个贴合客户行业场景的快捷标签
+- placeholder给具体例子
+- 问题像5年经验售前顾问在问，专业不啰嗦，体现听懂了客户说的
+- 问题要围绕智能表格能实现的功能来追问（子表结构、自动化规则、视图需求、权限、提醒等）
+
+REPORT输出纯文本报告（不要JSON），格式：
+【客户信息】行业、规模、需求方向
+【业务场景】核心流程、痛点（用客户原话）
+【详细规格】数据规模、权限、提醒、对接需求
+【智能表格搭建方案】
+  - 建议的子表结构（列出每张子表名称和核心字段）
+  - 关键自动化规则（如到期提醒、状态流转、数据汇总）
+  - 推荐视图（表格/看板/日历/仪表盘）
+  - 权限设计思路
+【API扩展需求】如有外部系统对接需求，说明对接方式
+【预估报价区间】基于搭建复杂度的价格范围（简单2000-6000，中等6000-20000，复杂20000+）
+【预估交付周期】
+注意：报告中所有方案建议必须基于智能表格能力，不要提及自建应用、专业CRM等其他产品。
+
+DEMO_SCHEMA输出格式（严格JSON，不要markdown包裹）：
+根据前面收集的全部需求信息，设计一个可直接创建的智能表格Demo结构。
+{"doc_name":"表格名称（简短，含客户行业）","sheets":[{"sheet_name":"子表名称","fields":[{"field_title":"字段名","field_type":"字段类型"}],"sample_records":[{"字段名":"示例值"}]}]}
+字段类型只能用：FIELD_TYPE_TEXT, FIELD_TYPE_NUMBER, FIELD_TYPE_SINGLE_SELECT, FIELD_TYPE_DATE_TIME, FIELD_TYPE_CURRENCY, FIELD_TYPE_PERCENTAGE, FIELD_TYPE_PROGRESS, FIELD_TYPE_PHONE_NUMBER, FIELD_TYPE_EMAIL, FIELD_TYPE_URL, FIELD_TYPE_CHECKBOX
+- 每个子表给5-8个核心字段（不要太多）
+- 每个子表给2-3条示例数据（让客户能直观看到效果）
+- 单选字段的示例值直接写选项文字
+- 子表数量控制在2-4个（核心场景即可，不要面面俱到）
+- 表格名称格式：「XX行业XX管理系统Demo」`;
+
+async function callAI(msg){
+  state.chatHistory.push({role:'user',content:msg});
+  try{
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+      body:JSON.stringify({model:MODEL,messages:[{role:'system',content:SYSTEM_PROMPT},...state.chatHistory],max_tokens:2000,temperature:0.7})});
+    const d=await r.json();
+    const reply=d.choices[0].message.content;
+    state.chatHistory.push({role:'assistant',content:reply});
+    return reply;
+  }catch(e){console.error(e);return null;}
+}
+
+function addMessage(c,t,l=''){
+  const chat=document.getElementById('chat'),div=document.createElement('div');
+  div.className='message '+t;
+  let h='';if(l)h+='<div class="label">'+l+'</div>';
+  h+=c.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  div.innerHTML=h;chat.appendChild(div);chat.scrollTop=chat.scrollHeight;
+}
+function addFormCard(html){
+  const chat=document.getElementById('chat'),div=document.createElement('div');
+  div.className='form-card';div.innerHTML=html;chat.appendChild(div);
+  div.querySelectorAll('.tag-item').forEach(tag=>{
+    tag.addEventListener('click',function(){
+      const inp=this.closest('.form-group').querySelector('input,textarea');if(!inp)return;
+      const v=this.textContent;
+      if(this.classList.contains('selected')){this.classList.remove('selected');inp.value=inp.value.split('、').filter(x=>x!==v).join('、');}
+      else{this.classList.add('selected');inp.value=inp.value?inp.value+'、'+v:v;}
+    });
+  });
+  chat.scrollTop=chat.scrollHeight;
+}
+function showLoading(t='AI 正在分析你的回答...'){
+  const chat=document.getElementById('chat'),div=document.createElement('div');
+  div.className='ai-loading';div.id='aiLoading';
+  div.innerHTML='<div class="spinner"></div><span>'+t+'</span>';
+  chat.appendChild(div);chat.scrollTop=chat.scrollHeight;
+}
+function hideLoading(){const el=document.getElementById('aiLoading');if(el)el.remove();}
+function updateStage(){
+  for(let i=0;i<=4;i++){const el=document.getElementById('stage-'+i);if(!el)continue;el.className='stage-item';
+    if(i<state.stage)el.className='stage-item done';if(i===state.stage)el.className='stage-item active';}
+}
+function scroll(){setTimeout(()=>{document.getElementById('chat').scrollTop=document.getElementById('chat').scrollHeight;},100);}
+
+function parseQuestions(reply){
+  try{const p=JSON.parse(reply);return p.questions||p;}catch{}
+  const m=reply.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if(m)try{const p=JSON.parse(m[1]);return p.questions||p;}catch{}
+  const j=reply.match(/\{[\s\S]*\}/);
+  if(j)try{const p=JSON.parse(j[0]);return p.questions||p;}catch{}
+  return null;
+}
+
+function buildForm(questions,stageNum,title,icon,submitFn){
+  let h='<div class="form-title"><span class="icon">'+icon+'</span> '+title+'</div>';
+  questions.forEach((q,i)=>{
+    const tags=(q.tags&&q.tags.length)?'<div class="tag-group">'+q.tags.map(t=>'<span class="tag-item">'+t+'</span>').join('')+'</div>':'';
+    const isLong=q.placeholder&&q.placeholder.length>30;
+    const inp=isLong?'<textarea id="f_d'+stageNum+'_'+i+'" placeholder="'+((q.placeholder||'').replace(/"/g,'&quot;'))+'"></textarea>'
+      :'<input type="text" id="f_d'+stageNum+'_'+i+'" placeholder="'+((q.placeholder||'').replace(/"/g,'&quot;'))+'">';
+    h+='<div class="form-group"><label class="form-label"><span class="num">'+(i+1)+'</span>'+q.label+'</label>'+inp+tags+'</div>';
+  });
+  if(stageNum===2){
+    h+='<div class="form-group"><label class="form-label"><span class="num">'+(questions.length+1)+'</span>预算范围？</label><select id="f_budget"><option value="">请选择</option><option value="3000元以内">3000元以内</option><option value="3000-8000元">3000-8000元</option><option value="8000-20000元">8000-20000元</option><option value="20000元以上">20000元以上</option><option value="没想好，先看方案">没想好，先看方案</option></select></div>';
+    h+='<div class="form-group"><label class="form-label"><span class="num">'+(questions.length+2)+'</span>期望上线时间？</label><select id="f_timeline"><option value="">请选择</option><option value="尽快，1-2周">尽快，1-2周</option><option value="1个月内">1个月内</option><option value="不急，先规划好">不急，先规划好</option></select></div>';
+  }
+  const btn=stageNum===2?'✨ 生成需求报告':'下一步 →';
+  h+='<button class="form-submit" onclick="'+submitFn+'()">'+btn+'</button>';
+  addFormCard(h);scroll();
+}
+
+// ===== Stage 0: 固定表单 =====
+function showStage0(){
+  addFormCard(`<div class="form-title"><span class="icon">📋</span> 先了解一下基础信息</div>
+    <div class="form-group"><label class="form-label"><span class="num">1</span>公司名称</label>
+      <input type="text" id="f_company" placeholder="请输入贵公司名称"></div>
+    <div class="form-group"><label class="form-label"><span class="num">2</span>所属行业</label>
+      <input type="text" id="f_industry" placeholder="输入或选择行业">
+      <div class="tag-group"><span class="tag-item">制造业</span><span class="tag-item">服务业/餐饮</span><span class="tag-item">建筑/房地产</span><span class="tag-item">批发零售</span><span class="tag-item">教育</span><span class="tag-item">金融</span><span class="tag-item">物流</span><span class="tag-item">IT/科技</span><span class="tag-item">医疗</span><span class="tag-item">其他</span></div></div>
+    <div class="form-group"><label class="form-label"><span class="num">3</span>公司规模</label>
+      <select id="f_size"><option value="">请选择人数规模</option><option value="10人以下">10人以下</option><option value="10-50人">10-50人</option><option value="50-100人">50-100人</option><option value="100-500人">100-500人</option><option value="500-1000人">500-1000人</option><option value="1000人以上">1000人以上</option></select></div>
+    <div class="form-group"><label class="form-label"><span class="num">4</span>业务模式介绍</label>
+      <textarea id="f_business" placeholder="请简要介绍涉及本次定制开发需求的主要业务，比如：我们是做国际物流货代的，客服团队通过企微群跟进客户咨询和投诉处理"></textarea>
+      <div class="form-hint">介绍一下你们的核心业务是怎么运转的</div></div>
+    <div class="form-group"><label class="form-label"><span class="num">5</span>希望解决什么问题？</label>
+      <textarea id="f_direction" placeholder="目前最头疼的问题是什么？希望通过定制开发解决什么痛点？比如：客户跟进记录全靠Excel，经常丢失，老板看不到全貌"></textarea>
+      <div class="form-hint">越具体越好，AI 会根据你说的内容定制后续问题</div></div>
+    <button class="form-submit" onclick="submitS0()">下一步 →</button>`);
+}
+
+async function submitS0(){
+  const company=document.getElementById('f_company').value.trim();
+  const ind=document.getElementById('f_industry').value.trim();
+  const sz=document.getElementById('f_size').value;
+  const biz=document.getElementById('f_business').value.trim();
+  const dir=document.getElementById('f_direction').value.trim();
+  if(!company||!ind||!sz||!biz||!dir){alert('请把每项都填完哦 🙏');return;}
+  state.data.company=company;state.data.industry=ind;state.data.size=sz;state.data.business=biz;state.data.direction=dir;
+  addMessage('公司：'+company+'\n行业：'+ind+'\n规模：'+sz+'\n业务：'+biz+'\n痛点：'+dir,'user');
+  state.stage=1;updateStage();
+
+  showLoading('AI 正在分析你的业务场景，生成针对性问题...');
+  const reply=await callAI('STAGE1\n客户基础信息：\n- 公司名称：'+company+'\n- 行业：'+ind+'\n- 规模：'+sz+'\n- 业务模式：'+biz+'\n- 希望解决的问题/痛点：'+dir+'\n\n请根据以上信息，生成3个针对这个客户业务场景的深挖问题。');
+  hideLoading();
+  if(!reply){addMessage('网络异常，请刷新重试 😥','agent','🤖');return;}
+  const qs=parseQuestions(reply);
+  if(!qs||!qs.length){addMessage('AI 返回异常，请刷新重试','agent','🤖');return;}
+  state.data._q1=qs;
+  addMessage('好的！**'+company+'**，'+ind+'行业，'+sz+'规模。\n\n我已经了解了你们的业务模式和痛点，再深入确认几个问题 👇','agent','🤖 需求助手');
+  setTimeout(()=>buildForm(qs,1,'针对你业务场景的深入问题','🔍','submitS1'),300);
+}
+
+// ===== Stage 1 =====
+async function submitS1(){
+  const qs=state.data._q1;
+  const vals=qs.map((_,i)=>document.getElementById('f_d1_'+i).value.trim());
+  if(vals.some(v=>!v)){alert('请把每项都填完哦 🙏');return;}
+  state.data.s1=vals;
+  addMessage(qs.map((q,i)=>q.label.replace(/？$/,'')+': '+vals[i]).join('\n'),'user');
+  state.stage=2;updateStage();
+
+  showLoading('AI 正在生成细节确认问题...');
+  const ctx=qs.map((q,i)=>'Q: '+q.label+'\nA: '+vals[i]).join('\n');
+  const reply=await callAI('STAGE2\n已收集信息：\n'+ctx+'\n\n请生成3个细节确认问题（数据量/来源/频率、仪表盘指标/展示方式、权限配置要求）。不要问预算和时间，这两个已有固定选项。');
+  hideLoading();
+  if(!reply){addMessage('网络异常，请刷新重试 😥','agent','🤖');return;}
+  const qs2=parseQuestions(reply);
+  if(!qs2||!qs2.length){addMessage('AI 返回异常，请刷新重试','agent','🤖');return;}
+  state.data._q2=qs2;
+  addMessage('📝 **收到！** 已经对你的需求有了初步了解。\n\n最后确认几个细节就能出报告了 👇','agent','🤖 需求助手');
+  setTimeout(()=>buildForm(qs2,2,'最后几个细节','⚙️','submitS2'),300);
+}
+
+// ===== Stage 2 =====
+async function submitS2(){
+  const qs=state.data._q2;
+  const vals=qs.map((_,i)=>document.getElementById('f_d2_'+i).value.trim());
+  const budget=document.getElementById('f_budget').value;
+  const timeline=document.getElementById('f_timeline').value;
+  if(!vals[0]||!budget){alert('请至少填写第1题和预算 🙏');return;}
+  state.data.s2=vals;state.data.budget=budget;state.data.timeline=timeline;
+
+  const summary=qs.map((q,i)=>vals[i]?q.label.replace(/？$/,'')+': '+vals[i]:'').filter(Boolean).join('\n');
+  addMessage(summary+'\n预算：'+budget+'\n上线：'+(timeline||'未定'),'user');
+  state.stage=3;updateStage();
+
+  showLoading('AI 正在生成需求洞察报告...');
+  const ctx2=qs.map((q,i)=>'Q: '+q.label+'\nA: '+(vals[i]||'未填')).join('\n');
+  const reply=await callAI('REPORT\n全部信息汇总：\n公司名称：'+state.data.company+'\n行业：'+state.data.industry+'，规模：'+state.data.size+'\n业务模式：'+state.data.business+'\n痛点/需求：'+state.data.direction+'\n预算：'+budget+'，上线时间：'+(timeline||'未定')+'\n\n'+ctx2+'\n\n请生成完整的需求洞察报告。');
+  hideLoading();
+  if(!reply){addMessage('网络异常，请刷新重试 😥','agent','🤖');return;}
+  addMessage('✅ 需求收集完成！\n\n'+reply,'report','📋 需求洞察报告');
+  state.data._report=reply;
+
+  // 自动保存到台账
+  saveToLedger(reply);
+  
+  // 报告后显示"生成Demo表格"按钮
+  setTimeout(()=>{
+    addFormCard(`<div class="form-title"><span class="icon">🔨</span> 想看看实际效果吗？</div>
+      <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">我可以根据刚才收集的需求，<strong>直接帮你生成一个智能表格 Demo</strong>，里面有真实的子表结构和示例数据，你打开就能体验。</p>
+      <button class="form-submit" onclick="generateDemo()">🔨 一键生成智能表格 Demo</button>`);
+  },500);
+}
+
+// ===== Stage 4: 生成 Demo 表格 =====
+async function generateDemo(){
+  state.stage=4;updateStage();
+  showLoading('AI 正在设计表格结构和示例数据...');
+  
+  const reply=await callAI('DEMO_SCHEMA\n请根据前面收集的所有需求信息，设计一个可直接创建的智能表格Demo结构。要包含子表名称、字段定义和2-3条示例数据。');
+  hideLoading();
+  if(!reply){addMessage('生成失败，请重试 😥','agent','🤖');return;}
+  
+  // 解析 JSON
+  let schema=null;
+  try{schema=JSON.parse(reply);}catch{
+    const m=reply.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if(m)try{schema=JSON.parse(m[1]);}catch{}
+    if(!schema){const j=reply.match(/\{[\s\S]*\}/);if(j)try{schema=JSON.parse(j[0]);}catch{}}
+  }
+  
+  if(!schema||!schema.sheets){
+    addMessage('AI 返回的表格结构格式异常，请重试','agent','🤖');return;
+  }
+  
+  // 保存到全局，展示预览
+  state.data._demoSchema=schema;
+  window._demoSchema=schema;
+  
+  let preview='📊 **表格结构预览：'+schema.doc_name+'**\n\n';
+  schema.sheets.forEach((s,i)=>{
+    preview+='**子表'+(i+1)+'：'+s.sheet_name+'**\n';
+    preview+='字段：'+s.fields.map(f=>f.field_title).join(' | ')+'\n';
+    if(s.sample_records&&s.sample_records.length){
+      preview+='示例数据：'+s.sample_records.length+'条\n';
+    }
+    preview+='\n';
+  });
+  preview+='点击下方按钮，将在企业微信中创建这个智能表格 👇';
+  addMessage(preview,'agent','🤖 表格结构预览');
+  
+  setTimeout(()=>{
+    addFormCard(`<div class="form-title"><span class="icon">🚀</span> 确认创建</div>
+      <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">表格将创建在你的企业微信文档中，包含 <strong>${schema.sheets.length} 个子表</strong>和示例数据。</p>
+      <button class="form-submit" onclick="createSmartsheet()">🚀 在企微中创建智能表格</button>
+      <div style="margin-top:8px;text-align:center">
+        <a href="javascript:void(0)" onclick="copySchema()" style="font-size:12px;color:#07c160;">或复制表格结构JSON</a>
+      </div>`);
+  },400);
+}
+
+function copySchema(){
+  const json=JSON.stringify(window._demoSchema,null,2);
+  navigator.clipboard.writeText(json).then(()=>alert('已复制到剪贴板！')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=json;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('已复制！');
+  });
+}
+
+// ===== 保存到需求台账 =====
+async function saveToLedger(report, demoUrl){
+  const qs1=state.data._q1||[];
+  const qs2=state.data._q2||[];
+  const s1=state.data.s1||[];
+  const s2=state.data.s2||[];
+  const s1Summary=qs1.map((q,i)=>q.label.replace(/？$/,'')+'：'+(s1[i]||'')).join('\n');
+  const s2Summary=qs2.map((q,i)=>q.label.replace(/？$/,'')+'：'+(s2[i]||'')).join('\n');
+
+  try{
+    await fetch('/api/save',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        company:state.data.company||'',
+        industry:state.data.industry||'',
+        size:state.data.size||'',
+        business:state.data.business||'',
+        direction:state.data.direction||'',
+        stage1_summary:s1Summary,
+        stage2_summary:s2Summary,
+        budget:state.data.budget||'',
+        timeline:state.data.timeline||'',
+        report:report||'',
+        demo_url:demoUrl||''
+      })
+    });
+  }catch(e){console.log('保存台账失败',e);}
+}
+
+async function createSmartsheet(){
+  const schema=window._demoSchema;
+  if(!schema){addMessage('表格结构数据丢失，请重新点击「生成Demo表格」','agent','🤖');return;}
+  
+  showLoading('正在调用企微接口创建智能表格，请稍候（约10-20秒）...');
+  
+  try{
+    const resp=await fetch('/api/create',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(schema)
+    });
+    const data=await resp.json();
+    hideLoading();
+    
+    if(data.success&&data.url){
+      addMessage('🎉 **智能表格已创建成功！**\n\n📊 表格名称：**'+data.doc_name+'**\n🔗 访问链接：'+data.url+'\n\n包含 '+data.sheets.length+' 个子表，已填入示例数据。\n\n👉 <a href="'+data.url+'" target="_blank" style="color:#07c160;text-decoration:underline;font-weight:bold;">点击打开智能表格</a>','agent','🤖 需求助手');
+      // 更新台账的 Demo 链接
+      saveToLedger(state.data._report, data.url);
+    }else{
+      addMessage('❌ 创建失败：'+(data.error||'未知错误')+'\n\n详情：'+(data.detail||''),'agent','🤖');
+    }
+  }catch(e){
+    hideLoading();
+    addMessage('❌ 无法连接创建服务。请确认后端服务已启动：\n\npython3 presale_agent_server/smartsheet_creator.py','agent','🤖');
+  }
+}
+
+// ===== 初始化 =====
+window.onload=()=>{
+  setTimeout(()=>{
+    addMessage('你好！我是**企业微信定制开发需求助手** 👋\n\n花 3 分钟填几个问题，AI 会根据你的回答**实时生成**最该问的问题，帮你梳理出清晰的需求报告。\n\n先从基础信息开始 👇','agent','🤖 企业微信定制开发需求助手');
+    setTimeout(()=>showStage0(),500);
+  },400);
+};
+</script>
+</body>
+</html>
