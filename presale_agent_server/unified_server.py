@@ -3,14 +3,21 @@
 统一服务：静态页面 + 智能表格创建 API（同一个端口 8765）
 """
 import json
+import sys
 import asyncio
 import aiohttp
 from aiohttp import web
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from cases.library import CaseLibrary
+
 MCP_URL = "https://qyapi.weixin.qq.com/mcp/robot-doc?apikey=S0RW0Ke7TfR0_NcWgTXq2Ht_BColuWjRzRVM9LMO3jHoIdKwI3gEPiNPnNxgkiPqhNXtAtM1_86okTOj8R5R8Q"
 PORT = 8765
 STATIC_DIR = Path(__file__).parent.parent  # 指向项目根目录
+
+# 初始化知识库
+case_lib = CaseLibrary(str(Path(__file__).parent / "cases"))
 
 
 async def call_mcp(session, tool_name, arguments):
@@ -175,8 +182,57 @@ async def health(request):
     return web.json_response({"status": "ok"})
 
 
+async def match_knowledge(request):
+    """知识库匹配接口：根据行业和方向返回相关知识摘要"""
+    try:
+        body = await request.json()
+    except:
+        return web.json_response({"error": "无效 JSON"}, status=400)
+
+    industry = body.get("industry", "")
+    direction = body.get("direction", "")
+    query = f"{industry} {direction}".strip()
+
+    # 匹配行业通用知识
+    industry_data = case_lib.match_industry(industry)
+    industry_knowledge = ""
+    if industry_data:
+        content = industry_data.get("content", "")
+        # 截取前2000字符，控制 token
+        industry_knowledge = content[:2000] if len(content) > 2000 else content
+
+    # 匹配相似案例（取 top 2）
+    detailed_cases = case_lib.match_detailed_case(query, top_k=2)
+    case_hints = ""
+    for case in detailed_cases:
+        meta = case.get("meta", {})
+        solution = case.get("solution", {})
+        # 不输出客户名，只输出行业+场景+方案结构
+        hint = f"【{meta.get('industry', '')} - {meta.get('scene', '')}】\n"
+        hint += f"痛点：{'; '.join(case.get('pain_points', [])[:4])}\n"
+        hint += f"方案架构：{solution.get('architecture', '')}\n"
+        tables = solution.get("tables", [])
+        if tables:
+            table_names = [t.get("table_name", "") for t in tables[:6]]
+            hint += f"子表：{', '.join(table_names)}\n"
+        rules = solution.get("automation_rules", [])
+        if rules:
+            hint += f"自动化：{'; '.join(rules[:3])}\n"
+        features = solution.get("key_features", [])
+        if features:
+            hint += f"亮点：{'; '.join(features[:3])}\n"
+        case_hints += hint + "\n"
+
+    return web.json_response({
+        "industry_knowledge": industry_knowledge,
+        "case_hints": case_hints.strip(),
+        "matched": bool(industry_knowledge or case_hints)
+    })
+
+
 app = web.Application()
 app.router.add_get("/api/health", health)
+app.router.add_post("/api/match", match_knowledge)
 app.router.add_post("/api/create", create_smartsheet)
 # 静态文件：服务项目根目录下的 HTML
 app.router.add_static("/", STATIC_DIR, show_index=True)
@@ -185,4 +241,6 @@ if __name__ == "__main__":
     print(f"🚀 统一服务启动在 http://localhost:{PORT}")
     print(f"   网页：http://localhost:{PORT}/presale-agent-demo.html")
     print(f"   API：POST http://localhost:{PORT}/api/create")
+    print(f"   API：POST http://localhost:{PORT}/api/match")
+    print(f"   知识库：{case_lib.count()} 案例卡片, {len(case_lib.industry_knowledge)} 行业, {len(case_lib.detailed_cases)} 完整案例")
     web.run_app(app, host="127.0.0.1", port=PORT)

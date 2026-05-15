@@ -632,9 +632,18 @@ class CaseLibrary:
         for case in self.detailed_cases:
             score = 0
             meta = case.get("meta", {})
-            if meta.get("industry", "").lower() in query_lower:
+            case_industry = meta.get("industry", "").lower()
+            case_scene = meta.get("scene", "").lower()
+            # 双向包含匹配：查询包含行业 或 行业包含查询词
+            if case_industry in query_lower or query_lower in case_industry:
                 score += 5
-            if meta.get("scene", "").lower() in query_lower:
+            else:
+                # 逐词匹配行业
+                for word in re.split(r'[，,、。/\s]+', query_lower):
+                    if len(word) >= 2 and word in case_industry:
+                        score += 4
+                        break
+            if case_scene in query_lower:
                 score += 3
             summary = case.get("demand_summary", "").lower()
             for word in re.split(r'[，,、。\s]+', query_lower):
