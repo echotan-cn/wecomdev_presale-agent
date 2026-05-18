@@ -43,111 +43,126 @@ def extract(mcp_resp):
     return result
 
 
+def setup_sheet_fields(docid, sid, fields, records, steps, sname):
+    """为单个智能表格的默认子表配置字段和数据"""
+    fr = extract(call_mcp("smartsheet_get_fields", {"docid": docid, "sheet_id": sid}))
+    dfid, dftype = None, "FIELD_TYPE_TEXT"
+    if isinstance(fr, dict):
+        fl = fr.get("fields", [])
+        if fl:
+            dfid = fl[0].get("field_id")
+            dftype = fl[0].get("field_type", "FIELD_TYPE_TEXT")
+
+    if fields and dfid:
+        call_mcp("smartsheet_update_fields", {
+            "docid": docid, "sheet_id": sid,
+            "fields": [{"field_id": dfid, "field_title": fields[0]["field_title"], "field_type": dftype}]
+        })
+        if len(fields) > 1:
+            call_mcp("smartsheet_add_fields", {
+                "docid": docid, "sheet_id": sid,
+                "fields": [{"field_title": f["field_title"], "field_type": f["field_type"]} for f in fields[1:]]
+            })
+        steps.append(f"  {len(fields)} 个字段已配置")
+
+    if records:
+        cf = extract(call_mcp("smartsheet_get_fields", {"docid": docid, "sheet_id": sid}))
+        fmap = {}
+        if isinstance(cf, dict):
+            for f in cf.get("fields", []):
+                fmap[f["field_title"]] = f
+
+        fmtd = []
+        for rec in records:
+            vals = {}
+            for k, v in rec.items():
+                if k not in fmap:
+                    continue
+                ft = fmap[k].get("field_type", "FIELD_TYPE_TEXT")
+                if ft == "FIELD_TYPE_TEXT":
+                    vals[k] = [{"type": "text", "text": str(v)}]
+                elif ft in ("FIELD_TYPE_NUMBER", "FIELD_TYPE_CURRENCY", "FIELD_TYPE_PERCENTAGE", "FIELD_TYPE_PROGRESS"):
+                    try:
+                        vals[k] = float(v)
+                    except:
+                        vals[k] = [{"type": "text", "text": str(v)}]
+                elif ft == "FIELD_TYPE_SINGLE_SELECT":
+                    vals[k] = [{"text": str(v)}]
+                elif ft == "FIELD_TYPE_DATE_TIME":
+                    vals[k] = str(v)
+                elif ft == "FIELD_TYPE_CHECKBOX":
+                    vals[k] = bool(v)
+                elif ft in ("FIELD_TYPE_PHONE_NUMBER", "FIELD_TYPE_EMAIL", "FIELD_TYPE_BARCODE"):
+                    vals[k] = str(v)
+                else:
+                    vals[k] = [{"type": "text", "text": str(v)}]
+            fmtd.append({"values": vals})
+
+        if fmtd:
+            call_mcp("smartsheet_add_records", {"docid": docid, "sheet_id": sid, "records": fmtd})
+            steps.append(f"  {len(fmtd)} 条示例数据已写入")
+
+
 def process_create(schema):
+    """每张子表创建一个独立智能表格文档（绕过 API 无法操作新建子表的限制）"""
     doc_name = schema.get("doc_name", "Demo智能表格")
     sheets = schema.get("sheets", [])
     if not sheets:
         return {"error": "sheets 为空", "success": False}
 
     steps = []
-
-    r = extract(call_mcp("create_doc", {"doc_type": 10, "doc_name": doc_name}))
-    if not r or (isinstance(r, dict) and r.get("errcode", 0) != 0):
-        return {"error": "创建文档失败", "detail": str(r), "success": False}
-
-    docid = r.get("docid") if isinstance(r, dict) else None
-    doc_url = r.get("url") if isinstance(r, dict) else None
-    if not docid:
-        return {"error": "未获取 docid", "detail": str(r), "success": False}
-    steps.append("文档已创建")
-
-    sr = extract(call_mcp("smartsheet_get_sheet", {"docid": docid}))
-    default_sid = None
-    if isinstance(sr, dict):
-        sl = sr.get("sheet_list", sr.get("sheets", []))
-        if isinstance(sl, list) and sl:
-            default_sid = sl[0].get("sheet_id")
-
     created = []
+
     for idx, sdef in enumerate(sheets):
         sname = sdef.get("sheet_name", f"子表{idx+1}")
         fields = sdef.get("fields", [])
         records = sdef.get("sample_records", [])
 
-        if idx == 0 and default_sid:
-            sid = default_sid
-            call_mcp("smartsheet_update_sheet", {"docid": docid, "sheet_id": sid, "title": sname})
-        else:
-            sr2 = extract(call_mcp("smartsheet_add_sheet", {"docid": docid, "title": sname}))
-            sid = None
-            if isinstance(sr2, dict):
-                sid = sr2.get("sheet_id") or (sr2.get("properties", {}) or {}).get("sheet_id")
-            if not sid:
-                steps.append(f"子表 {sname} 创建失败")
-                continue
+        # 每张子表创建一个独立文档，文档名 = 总名称 + 子表名
+        this_doc_name = f"{doc_name} - {sname}"
+        r = extract(call_mcp("create_doc", {"doc_type": 10, "doc_name": this_doc_name}))
+        if not r or (isinstance(r, dict) and r.get("errcode", 0) != 0):
+            steps.append(f"文档「{sname}」创建失败: {str(r)}")
+            continue
 
-        steps.append(f"子表「{sname}」就绪")
+        docid = r.get("docid") if isinstance(r, dict) else None
+        doc_url = r.get("url") if isinstance(r, dict) else None
+        if not docid:
+            steps.append(f"文档「{sname}」未获取 docid")
+            continue
 
-        fr = extract(call_mcp("smartsheet_get_fields", {"docid": docid, "sheet_id": sid}))
-        dfid, dftype = None, "FIELD_TYPE_TEXT"
-        if isinstance(fr, dict):
-            fl = fr.get("fields", [])
-            if fl:
-                dfid = fl[0].get("field_id")
-                dftype = fl[0].get("field_type", "FIELD_TYPE_TEXT")
+        steps.append(f"文档「{this_doc_name}」已创建")
 
-        if fields and dfid:
-            call_mcp("smartsheet_update_fields", {
-                "docid": docid, "sheet_id": sid,
-                "fields": [{"field_id": dfid, "field_title": fields[0]["field_title"], "field_type": dftype}]
-            })
-            if len(fields) > 1:
-                call_mcp("smartsheet_add_fields", {
-                    "docid": docid, "sheet_id": sid,
-                    "fields": [{"field_title": f["field_title"], "field_type": f["field_type"]} for f in fields[1:]]
-                })
-            steps.append(f"  {len(fields)} 个字段已配置")
+        # 获取默认子表 ID
+        sr = extract(call_mcp("smartsheet_get_sheet", {"docid": docid}))
+        sid = None
+        if isinstance(sr, dict):
+            sl = sr.get("sheet_list", sr.get("sheets", []))
+            if isinstance(sl, list) and sl:
+                sid = sl[0].get("sheet_id")
 
-        if records:
-            cf = extract(call_mcp("smartsheet_get_fields", {"docid": docid, "sheet_id": sid}))
-            fmap = {}
-            if isinstance(cf, dict):
-                for f in cf.get("fields", []):
-                    fmap[f["field_title"]] = f
+        if not sid:
+            steps.append(f"  无法获取默认子表 ID")
+            continue
 
-            fmtd = []
-            for rec in records:
-                vals = {}
-                for k, v in rec.items():
-                    if k not in fmap:
-                        continue
-                    ft = fmap[k].get("field_type", "FIELD_TYPE_TEXT")
-                    if ft == "FIELD_TYPE_TEXT":
-                        vals[k] = [{"type": "text", "text": str(v)}]
-                    elif ft in ("FIELD_TYPE_NUMBER", "FIELD_TYPE_CURRENCY", "FIELD_TYPE_PERCENTAGE", "FIELD_TYPE_PROGRESS"):
-                        try:
-                            vals[k] = float(v)
-                        except:
-                            vals[k] = [{"type": "text", "text": str(v)}]
-                    elif ft == "FIELD_TYPE_SINGLE_SELECT":
-                        vals[k] = [{"text": str(v)}]
-                    elif ft == "FIELD_TYPE_DATE_TIME":
-                        vals[k] = str(v)
-                    elif ft == "FIELD_TYPE_CHECKBOX":
-                        vals[k] = bool(v)
-                    elif ft in ("FIELD_TYPE_PHONE_NUMBER", "FIELD_TYPE_EMAIL", "FIELD_TYPE_BARCODE"):
-                        vals[k] = str(v)
-                    else:
-                        vals[k] = [{"type": "text", "text": str(v)}]
-                fmtd.append({"values": vals})
+        # 配置字段和数据
+        setup_sheet_fields(docid, sid, fields, records, steps, sname)
 
-            if fmtd:
-                call_mcp("smartsheet_add_records", {"docid": docid, "sheet_id": sid, "records": fmtd})
-                steps.append(f"  {len(fmtd)} 条示例数据已写入")
+        created.append({
+            "sheet_name": sname,
+            "doc_name": this_doc_name,
+            "docid": docid,
+            "sheet_id": sid,
+            "url": doc_url
+        })
 
-        created.append({"sheet_name": sname, "sheet_id": sid})
-
-    return {"success": True, "doc_name": doc_name, "docid": docid, "url": doc_url, "sheets": created, "steps": steps}
+    return {
+        "success": len(created) > 0,
+        "doc_name": doc_name,
+        "total_docs": len(created),
+        "docs": created,
+        "steps": steps
+    }
 
 
 class handler(BaseHTTPRequestHandler):

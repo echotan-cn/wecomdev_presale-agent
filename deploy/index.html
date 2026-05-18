@@ -388,7 +388,7 @@ async function generateDemo(){
   addMessage(preview,'agent','🤖 表格结构预览');
   setTimeout(()=>{
     addFormCard(`<div class="form-title"><span class="icon">🚀</span> 确认创建</div>
-      <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">表格将创建在你的企业微信文档中，包含 <strong>${schema.sheets.length} 个子表</strong>和示例数据。</p>
+      <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">将为你创建 <strong>${schema.sheets.length} 个智能表格文档</strong>（每张子表一个独立文档），每个文档包含完整字段和示例数据。</p>
       <button class="form-submit" onclick="createSmartsheet()">🚀 在企微中创建智能表格</button>
       <div style="margin-top:8px;text-align:center">
         <a href="javascript:void(0)" onclick="copySchema()" style="font-size:12px;color:#07c160;">或复制表格结构JSON</a>
@@ -417,14 +417,22 @@ async function saveToLedger(report,demoUrl){
 async function createSmartsheet(){
   const schema=window._demoSchema;
   if(!schema){addMessage('表格结构数据丢失，请重新点击「生成Demo表格」','agent','🤖');return;}
-  showLoading('正在调用企微接口创建智能表格，请稍候（约10-20秒）...');
+  showLoading('正在调用企微接口创建智能表格（每张子表一个文档），请稍候（约20-40秒）...');
   try{
     const resp=await fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(schema)});
     const data=await resp.json();hideLoading();
-    if(data.success&&data.url){
-      addMessage('🎉 **智能表格已创建成功！**\n\n📊 表格名称：**'+data.doc_name+'**\n🔗 访问链接：'+data.url+'\n\n包含 '+data.sheets.length+' 个子表，已填入示例数据。\n\n👉 <a href="'+data.url+'" target="_blank" style="color:#07c160;text-decoration:underline;font-weight:bold;">点击打开智能表格</a>','agent','🤖 需求助手');
-      saveToLedger(state.data._report,data.url);
-    }else{addMessage('❌ 创建失败：'+(data.error||'未知错误')+'\n\n详情：'+(data.detail||''),'agent','🤖');}
+    if(data.success&&data.docs&&data.docs.length>0){
+      let msg='🎉 **智能表格已创建成功！**\n\n📊 总方案名：**'+data.doc_name+'**\n📄 共创建 **'+data.total_docs+'** 个智能表格文档：\n\n';
+      data.docs.forEach((doc,i)=>{
+        msg+='**'+(i+1)+'. '+doc.sheet_name+'**\n';
+        if(doc.url){msg+='🔗 <a href="'+doc.url+'" target="_blank" style="color:#07c160;text-decoration:underline;">点击打开</a>\n';}
+        msg+='\n';
+      });
+      msg+='每个文档包含完整的字段定义和示例数据，打开即可体验。';
+      addMessage(msg,'agent','🤖 需求助手');
+      const firstUrl=data.docs.find(d=>d.url);
+      saveToLedger(state.data._report,firstUrl?firstUrl.url:'');
+    }else{addMessage('❌ 创建失败：'+(data.error||'未知错误')+'\n\n详情：'+JSON.stringify(data.steps||data.detail||''),'agent','🤖');}
   }catch(e){hideLoading();addMessage('❌ 无法连接创建服务。请确认后端服务已启动。','agent','🤖');}
 }
 
