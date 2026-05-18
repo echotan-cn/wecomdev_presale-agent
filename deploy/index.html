@@ -212,10 +212,9 @@ function buildExploreForm(questions,roundNum){
   let h='<div class="form-title"><span class="icon">🔍</span> 第'+roundNum+'轮深入问题</div>';
   questions.forEach((q,i)=>{
     const tags=(q.tags&&q.tags.length)?'<div class="tag-group">'+q.tags.map(t=>'<span class="tag-item">'+t+'</span>').join('')+'</div>':'';
-    const dim=q.dimension?'<div style="font-size:10px;color:#07c160;margin-top:2px">📌 '+q.dimension+'</div>':'';
     h+='<div class="form-group"><label class="form-label"><span class="num">'+(globalOffset+i+1)+'</span>'+q.label+'</label>';
     h+='<textarea id="f_explore_'+roundNum+'_'+i+'" placeholder="'+((q.placeholder||'').replace(/"/g,'&quot;'))+'"></textarea>';
-    h+=tags+dim+'</div>';
+    h+=tags+'</div>';
   });
   h+='<button class="form-submit" onclick="submitExplore('+roundNum+','+questions.length+')">下一步 →</button>';
   addFormCard(h);scroll();
