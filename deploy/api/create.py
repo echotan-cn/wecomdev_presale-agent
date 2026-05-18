@@ -7,8 +7,8 @@ MCP_URL = "https://qyapi.weixin.qq.com/mcp/robot-doc?apikey=S0RW0Ke7TfR0_NcWgTXq
 
 
 def call_mcp(tool_name, arguments):
-    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool_name, "arguments": arguments}}).encode("utf-8")
-    req = urllib.request.Request(MCP_URL, data=payload, headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool_name, "arguments": arguments}}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(MCP_URL, data=payload, headers={"Content-Type": "application/json; charset=utf-8", "Accept": "application/json, text/event-stream"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         ct = resp.headers.get("Content-Type", "")
         body = resp.read().decode("utf-8")
