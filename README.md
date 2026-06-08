@@ -1,3 +1,13 @@
+> **📦 项目接管说明**：本仓库自 [Serenasnchen/presale-agent](https://github.com/Serenasnchen/presale-agent) 接管而来，由 [@echotan-cn](https://github.com/echotan-cn) 继续维护与迭代。完整 commit 历史已保留。
+>
+> 接管时间：2026-06-08
+>
+> 关联仓库：
+> - [echotan-cn/wecomdev_provider-assist](https://github.com/echotan-cn/wecomdev_provider-assist) — 服务商协助 Agent（当前主力迭代）
+> - [echotan-cn/presale-knowledge-base](https://github.com/echotan-cn/presale-knowledge-base) — 共享知识库
+
+---
+
 # 企业微信定制开发需求助手
 
 > AI 驱动的售前需求洞察系统，基于 DeepSeek V4-Flash + 企微智能表格 MCP
